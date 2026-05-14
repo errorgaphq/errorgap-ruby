@@ -1,0 +1,36 @@
+stages:
+  - test
+  - build
+
+variables:
+  BUNDLE_PATH: vendor/bundle
+
+cache:
+  key: "bundler-${CI_COMMIT_REF_SLUG}"
+  paths:
+    - vendor/bundle
+
+.default_ruby_job: &default_ruby_job
+  image: ruby:3.3
+  before_script:
+    - ruby -v
+    - gem install bundler
+    - bundle config set path "$BUNDLE_PATH"
+    - bundle config set frozen false
+    - bundle install
+
+ruby_test:
+  <<: *default_ruby_job
+  stage: test
+  script:
+    - bundle exec rake test
+
+ruby_build:
+  <<: *default_ruby_job
+  stage: build
+  script:
+    - gem build errorgap.gemspec
+  artifacts:
+    paths:
+      - "*.gem"
+    expire_in: 1 week
