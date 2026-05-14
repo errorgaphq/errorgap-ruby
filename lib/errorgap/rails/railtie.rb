@@ -14,11 +14,7 @@ module Errorgap
       end
 
       initializer "errorgap.insert_middleware" do |app|
-        app.config.middleware.use Errorgap::RackMiddleware unless self.class.middleware_exists?(app)
-      end
-
-      def self.middleware_exists?(app)
-        app.config.middleware.any? { |middleware| middleware.klass == Errorgap::RackMiddleware }
+        app.config.middleware.use Errorgap::RackMiddleware
       end
 
       generators do
