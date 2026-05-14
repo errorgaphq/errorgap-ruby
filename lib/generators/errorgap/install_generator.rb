@@ -10,7 +10,7 @@ module Errorgap
 
         Errorgap.configure do |config|
           config.endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
-          config.project_slug = ENV.fetch("ERRORGAP_PROJECT_SLUG")
+          config.project_slug = ENV["ERRORGAP_PROJECT_SLUG"]
           config.project_id = ENV["ERRORGAP_PROJECT_ID"]
           config.api_key = ENV["ERRORGAP_API_KEY"]
           config.environment = Rails.env
