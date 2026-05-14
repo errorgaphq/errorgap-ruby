@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "errorgap"
+
+command = ARGV.shift
+
+case command
+when "test"
+  Errorgap.notify(RuntimeError.new("Errorgap test exception"), sync: true)
+  puts "Sent test exception to Errorgap."
+else
+  warn "Usage: errorgap test"
+  exit 1
+end
