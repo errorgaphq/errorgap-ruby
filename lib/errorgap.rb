@@ -3,6 +3,9 @@
 require_relative "errorgap/configuration"
 require_relative "errorgap/notifier"
 require_relative "errorgap/notice"
+require_relative "errorgap/transaction"
+require_relative "errorgap/span_collector"
+require_relative "errorgap/transacter"
 require_relative "errorgap/rack_middleware"
 require_relative "errorgap/version"
 
@@ -11,6 +14,7 @@ module Errorgap
     def configure
       yield(configuration)
       notifier.configure(configuration)
+      transacter.configure(configuration)
     end
 
     def configuration
@@ -19,6 +23,10 @@ module Errorgap
 
     def notifier
       @notifier ||= Notifier.new(configuration)
+    end
+
+    def transacter
+      @transacter ||= Transacter.new(configuration)
     end
 
     def notify(error, context: {}, environment: {}, session: {}, params: {}, sync: false)

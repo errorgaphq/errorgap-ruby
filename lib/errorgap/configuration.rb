@@ -10,7 +10,9 @@ module Errorgap
                   :root_directory,
                   :async,
                   :logger,
-                  :filter_keys
+                  :filter_keys,
+                  :apm_enabled,
+                  :apm_sample_rate
 
     def initialize
       @endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
@@ -21,6 +23,8 @@ module Errorgap
       @root_directory = Dir.pwd
       @async = true
       @filter_keys = %w[password password_confirmation token secret api_key authorization cookie]
+      @apm_enabled = false
+      @apm_sample_rate = 1.0
     end
 
     def validate!

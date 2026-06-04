@@ -17,6 +17,10 @@ module Errorgap
         app.config.middleware.use Errorgap::RackMiddleware
       end
 
+      initializer "errorgap.install_span_collector" do
+        SpanCollector.install if Errorgap.configuration.apm_enabled
+      end
+
       generators do
         require "generators/errorgap/install_generator"
       end

@@ -16,6 +16,11 @@ module Errorgap
           config.environment = Rails.env
           config.root_directory = Rails.root.to_s
           config.logger = Rails.logger
+
+          # Enable APM performance monitoring (opt-in).
+          # Records HTTP request timing and DB query spans via ActiveSupport::Notifications.
+          # config.apm_enabled = true
+          # config.apm_sample_rate = 1.0   # 0.0–1.0; sample a fraction of requests
         end
       RUBY
     end
