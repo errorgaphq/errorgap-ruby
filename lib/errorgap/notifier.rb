@@ -47,7 +47,7 @@ module Errorgap
       request = Net::HTTP::Post.new(uri)
       request["Content-Type"] = "application/json"
       request["User-Agent"] = "errorgap-ruby/#{Errorgap::VERSION}"
-      request["X-Errorgap-Api-Key"] = @configuration.api_key if present?(@configuration.api_key)
+      request["X-Errorgap-Project-Key"] = @configuration.api_key if present?(@configuration.api_key)
       request.body = JSON.generate(notice.to_h)
 
       response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") do |http|

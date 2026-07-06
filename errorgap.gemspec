@@ -6,11 +6,11 @@ Gem::Specification.new do |spec|
   spec.name = "errorgap"
   spec.version = Errorgap::VERSION
   spec.authors = ["Errorgap"]
-  spec.email = ["support@example.com"]
+  spec.email = ["support@errorgap.com"]
 
   spec.summary = "Ruby notifier for Errorgap error tracking."
   spec.description = "Captures Ruby exceptions and sends them to a Errorgap server."
-  spec.homepage = "https://github.com/jGRUBBS/errorgap-ruby"
+  spec.homepage = "https://github.com/errorgaphq/errorgap-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.7"
 
