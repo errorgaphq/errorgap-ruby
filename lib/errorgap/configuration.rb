@@ -11,6 +11,7 @@ module Errorgap
                   :async,
                   :logger,
                   :filter_keys,
+                  :ignore_environments,
                   :apm_enabled,
                   :apm_sample_rate
 
@@ -23,6 +24,7 @@ module Errorgap
       @root_directory = Dir.pwd
       @async = true
       @filter_keys = %w[password password_confirmation token secret api_key authorization cookie]
+      @ignore_environments = ENV.fetch("ERRORGAP_IGNORE_ENVIRONMENTS", "").split(",").map(&:strip).reject(&:empty?)
       @apm_enabled = false
       @apm_sample_rate = 1.0
     end
@@ -31,6 +33,10 @@ module Errorgap
       raise ArgumentError, "Errorgap project_slug is required" if blank?(project_slug)
 
       true
+    end
+
+    def ignored_environment?
+      Array(ignore_environments).map(&:to_s).include?(environment.to_s)
     end
 
     private

@@ -27,6 +27,10 @@ Errorgap.configure do |config|
   config.project_id = ENV["ERRORGAP_PROJECT_ID"]
   config.api_key = ENV["ERRORGAP_API_KEY"]
   config.environment = ENV.fetch("RAILS_ENV", ENV.fetch("RACK_ENV", "development"))
+
+  # Skip reporting entirely (errors and APM) in these environments.
+  # Also configurable via ERRORGAP_IGNORE_ENVIRONMENTS="test,development".
+  config.ignore_environments = %w[test development]
 end
 ```
 

@@ -15,6 +15,7 @@ module Errorgap
     end
 
     def deliver_async(transaction)
+      return if @configuration.ignored_environment?
       return unless should_sample?
 
       Thread.new { deliver(transaction) }

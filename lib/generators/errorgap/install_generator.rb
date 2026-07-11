@@ -17,6 +17,9 @@ module Errorgap
           config.root_directory = Rails.root.to_s
           config.logger = Rails.logger
 
+          # Environments in which nothing is reported (errors or APM).
+          config.ignore_environments = %w[test development]
+
           # Enable APM performance monitoring (opt-in).
           # Records HTTP request timing and DB query spans via ActiveSupport::Notifications.
           # config.apm_enabled = true

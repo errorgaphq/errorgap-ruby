@@ -22,6 +22,8 @@ module Errorgap
 
     def notify(error, context: {}, environment: {}, session: {}, params: {}, sync: false)
       @configuration.validate!
+      return Response.new(status: 202, body: "ignored environment") if @configuration.ignored_environment?
+
       notice = Notice.from_exception(
         error,
         configuration: @configuration,
