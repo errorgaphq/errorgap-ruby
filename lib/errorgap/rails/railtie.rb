@@ -18,7 +18,11 @@ module Errorgap
       end
 
       initializer "errorgap.install_span_collector" do
-        SpanCollector.install if Errorgap.configuration.apm_enabled
+        # Unconditional: apps enable APM in config/initializers, which runs
+        # after railtie initializers, so the flag cannot be checked here. The
+        # subscribers no-op unless the middleware starts a per-request
+        # collection, which does check the flag.
+        SpanCollector.install
       end
 
       generators do

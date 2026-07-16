@@ -14,9 +14,16 @@ module Errorgap
     SKIP_NAMES = %w[SCHEMA EXPLAIN CACHE].freeze
 
     class << self
-      # Call once at boot (from Railtie) when APM is enabled.
+      # Call once at boot (from Railtie). Subscribers only record while a
+      # transaction is being collected (the middleware starts one per request
+      # when APM is enabled), so installing unconditionally is safe — and
+      # required, since app initializers that enable APM run after railtie
+      # initializers.
       def install
         return unless defined?(ActiveSupport::Notifications)
+        return if @installed
+
+        @installed = true
 
         ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
           next unless Thread.current[THREAD_KEY]
@@ -27,6 +34,17 @@ module Errorgap
           sql = normalize_sql(payload[:sql].to_s)
 
           store << Span.new(kind: "db", sql: sql, duration_ms: duration_ms.round(3))
+        end
+
+        # Rails reports view_runtime with database time already subtracted, so
+        # this does not double count the db spans above.
+        ActiveSupport::Notifications.subscribe("process_action.action_controller") do |*, payload|
+          next unless Thread.current[THREAD_KEY]
+
+          view_ms = payload[:view_runtime]
+          next unless view_ms&.positive?
+
+          store << Span.new(kind: "view", duration_ms: view_ms.round(3))
         end
       end
 

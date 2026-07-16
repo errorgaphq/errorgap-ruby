@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- APM span collection now works when `config.apm_enabled` is set in a Rails
+  app initializer (the common case). The `sql.active_record` subscriber was
+  previously installed only if APM was already enabled during railtie
+  initialization, which runs before `config/initializers` — so transactions
+  shipped without spans and the time breakdown showed everything as
+  "App / other".
+
+### Added
+
+- View-rendering time is now recorded as a `view` span (from Rails'
+  `process_action.action_controller` `view_runtime`), populating the
+  "View rendering" segment of the route time breakdown.
+
 ## [0.2.0] - 2026-07-10
 
 ### Added
