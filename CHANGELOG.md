@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- In-app backtrace frames now include a source excerpt (`source: {start_line,
+  lines}`, ±6 lines around the failing line) so the errorgap UI can render
+  backtrace source without a repository integration.
+
 - View-rendering time is now recorded as a `view` span (from Rails'
   `process_action.action_controller` `view_runtime`), populating the
   "View rendering" segment of the route time breakdown.
