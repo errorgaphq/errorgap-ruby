@@ -102,8 +102,10 @@ module Errorgap
       nil
     end
 
+    # Ruby <= 3.3 formats frames as `file.rb:42:in `method'` (backtick),
+    # Ruby >= 3.4 as `file.rb:42:in 'Class#method'` (straight quote).
     def parse_backtrace_line(line)
-      match = line.match(/\A(.+?):(\d+)(?::in `(.*)')?\z/)
+      match = line.match(/\A(.+?):(\d+)(?::in [`'](.*)')?\z/)
       return [line, nil, nil] unless match
 
       [match[1], match[2].to_i, match[3]]

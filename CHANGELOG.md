@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-16
+
+### Fixed
+
+- Backtrace frames are now parsed on Ruby 3.4+, which formats frames as
+  `file.rb:12:in 'Class#method'` (straight quote) instead of the pre-3.4
+  `` file.rb:12:in `method' `` (backtick). Unparsed frames carried no line
+  number or function, which also prevented source excerpts from being
+  attached — the UI showed "Source is not available for this frame yet."
+  for every frame.
+
+- DB span durations are now computed from the notification event's
+  start/finish timestamps. The `sql.active_record` payload carries no
+  `:duration` key, so every query previously shipped `0.0` — showing as
+  0.0ms 50th/95th percentiles on the Performance > Queries page.
+
+### Added
+
+- DB spans now carry the application call site (`file`, `line`, `fn_name`),
+  captured from the first non-gem backtrace frame, so Performance > Queries
+  can attribute each query to app code.
+
 ## [0.3.0] - 2026-07-16
 
 ### Fixed

@@ -25,15 +25,22 @@ module Errorgap
 
         @installed = true
 
-        ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        # The 5-arg block form receives the event's start/finish times; the
+        # sql.active_record payload itself carries no duration key.
+        ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, started, finished, _id, payload|
           next unless Thread.current[THREAD_KEY]
           next if SKIP_NAMES.any? { |n| payload[:name]&.start_with?(n) }
           next if payload[:cached]
 
-          duration_ms = payload[:duration] || 0.0
+          duration_ms = ((finished - started) * 1000.0).to_f
           sql = normalize_sql(payload[:sql].to_s)
+          file, line, fn_name = app_call_site
 
-          store << Span.new(kind: "db", sql: sql, duration_ms: duration_ms.round(3))
+          store << Span.new(
+            kind: "db", sql: sql,
+            file: file, line: line, fn_name: fn_name,
+            duration_ms: duration_ms.round(3)
+          )
         end
 
         # Rails reports view_runtime with database time already subtracted, so
@@ -65,6 +72,31 @@ module Errorgap
       def normalize_sql(sql)
         sql.gsub(NORMALIZE_PATTERN, "?").gsub(/\s+/, " ").strip
       end
+
+      # The first backtrace frame belonging to the application — skipping this
+      # gem, other gems, and the Ruby standard library — so a query can be
+      # attributed to the app code that ran it. Returns [file, line, fn_name]
+      # with the file relative to Rails.root when available, or nils when no
+      # app frame is present (e.g. queries run from a console or gem).
+      def app_call_site
+        root = defined?(Rails) && Rails.respond_to?(:root) && Rails.root ? Rails.root.to_s : nil
+        location = caller_locations(1, 60)&.find do |loc|
+          path = loc.absolute_path || loc.path
+          next false unless path
+          next false if path.start_with?(LIB_ROOT)
+          next false if GEM_PATH_MARKERS.any? { |marker| path.include?(marker) }
+
+          root ? path.start_with?(root) : true
+        end
+        return [nil, nil, nil] unless location
+
+        path = location.absolute_path || location.path
+        path = path.delete_prefix("#{root}/") if root
+        [path, location.lineno, location.label]
+      end
     end
+
+    LIB_ROOT = File.expand_path("..", __dir__)
+    GEM_PATH_MARKERS = ["/gems/", "/rubygems/", "/lib/ruby/", "/bundler/"].freeze
   end
 end
