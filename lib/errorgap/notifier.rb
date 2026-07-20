@@ -20,7 +20,7 @@ module Errorgap
       @configuration = configuration
     end
 
-    def notify(error, context: {}, environment: {}, session: {}, params: {}, sync: false)
+    def notify(error, context: {}, environment: {}, session: {}, params: {}, breadcrumbs: [], sync: false)
       @configuration.validate!
       return Response.new(status: 202, body: "ignored environment") if @configuration.ignored_environment?
 
@@ -30,13 +30,14 @@ module Errorgap
         context: context,
         environment: environment,
         session: session,
-        params: params
+        params: params,
+        breadcrumbs: breadcrumbs
       )
 
       if sync || !@configuration.async
         deliver(notice)
       else
-        Thread.new { deliver(notice) }
+        Errorgap.register_thread(Thread.new { deliver(notice) })
         Response.new(status: 202, body: "queued")
       end
     rescue StandardError => exception

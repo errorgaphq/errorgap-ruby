@@ -10,25 +10,28 @@ module Errorgap
     SOURCE_RADIUS = 6
     MAX_SOURCE_FRAMES = 25
     MAX_SOURCE_LINE_LENGTH = 400
+    MAX_CAUSE_DEPTH = 10
 
-    def self.from_exception(error, configuration:, context: {}, environment: {}, session: {}, params: {})
+    def self.from_exception(error, configuration:, context: {}, environment: {}, session: {}, params: {}, breadcrumbs: [])
       new(
         error: error,
         configuration: configuration,
         context: context,
         environment: environment,
         session: session,
-        params: params
+        params: params,
+        breadcrumbs: breadcrumbs
       )
     end
 
-    def initialize(error:, configuration:, context:, environment:, session:, params:)
+    def initialize(error:, configuration:, context:, environment:, session:, params:, breadcrumbs: [])
       @error = error
       @configuration = configuration
       @context = context || {}
       @environment = environment || {}
       @session = session || {}
       @params = params || {}
+      @breadcrumbs = Array(breadcrumbs)
     end
 
     def to_h
@@ -52,32 +55,64 @@ module Errorgap
     private
 
     def default_context
-      {
+      context = {
         notifier: "errorgap-ruby",
         notifier_version: Errorgap::VERSION,
         environment: @configuration.environment,
         root_directory: @configuration.root_directory
       }
+      causes = collect_causes
+      context[:causes] = causes unless causes.empty?
+      context[:breadcrumbs] = @breadcrumbs unless @breadcrumbs.empty?
+      context
     end
 
+    # Walks the exception's `cause` chain (Ruby's nested exceptions) and merges
+    # every link's frames into one backtrace, re-indexed, so the dashboard
+    # renders the full chain in a single view.
     def backtrace_frames
       source_frames = 0
-      Array(@error.backtrace).map.with_index do |line, index|
-        file, line_number, function = parse_backtrace_line(line)
-        frame = {
-          file: relative_file(file),
-          line: line_number,
-          function: function,
-          in_app: in_app?(file),
-          index: index
-        }
-        if in_app?(file) && source_frames < MAX_SOURCE_FRAMES &&
-           (source = source_excerpt(file, line_number))
-          frame[:source] = source
-          source_frames += 1
+      index = 0
+      frames = []
+      error_chain.each do |link|
+        Array(link.backtrace).each do |line|
+          file, line_number, function = parse_backtrace_line(line)
+          absolute = absolute_frame_path(file)
+          frame = {
+            file: display_path(absolute),
+            line: line_number,
+            function: function,
+            in_app: within_root?(absolute),
+            index: index
+          }
+          if source_frames < MAX_SOURCE_FRAMES && (source = source_excerpt(absolute, line_number))
+            frame[:source] = source
+            source_frames += 1
+          end
+          frames << frame.compact
+          index += 1
         end
-        frame.compact
       end
+      frames
+    end
+
+    # The causes beyond the root error, as {type, message} pairs.
+    def collect_causes
+      error_chain.drop(1).map do |link|
+        { type: link.class.name, message: link.message.to_s }
+      end
+    end
+
+    def error_chain
+      chain = []
+      seen = {}
+      current = @error
+      while current.is_a?(Exception) && !seen[current.object_id] && chain.length < MAX_CAUSE_DEPTH
+        seen[current.object_id] = true
+        chain << current
+        current = current.cause
+      end
+      chain
     end
 
     # Reads the lines around the failing line so the server can show source
@@ -111,16 +146,30 @@ module Errorgap
       [match[1], match[2].to_i, match[3]]
     end
 
-    def relative_file(file)
-      root = @configuration.root_directory.to_s
-      return file if root.empty?
+    # Ruby reports the entry script by the (possibly relative) path it was
+    # invoked with, while `require`d files use absolute paths. Resolve relative
+    # frames against the configured root so the entry point — and framework
+    # frames reported relative to the app root — classify as in-app too.
+    def absolute_frame_path(file)
+      path = file.to_s
+      return path if path.start_with?("/") || path.match?(%r{\A[A-Za-z]:[\\/]})
 
-      file.to_s.sub(%r{\A#{Regexp.escape(root)}/?}, "")
+      root = @configuration.root_directory.to_s
+      root.empty? ? path : File.expand_path(path, root)
     end
 
-    def in_app?(file)
+    def within_root?(absolute_path)
       root = @configuration.root_directory.to_s
-      !root.empty? && file.to_s.start_with?(root)
+      return false if root.empty?
+
+      absolute_path == root || absolute_path.start_with?("#{root}/")
+    end
+
+    def display_path(absolute_path)
+      root = @configuration.root_directory.to_s
+      return absolute_path if root.empty?
+
+      absolute_path.sub(%r{\A#{Regexp.escape(root)}/?}, "")
     end
 
     def filter_hash(hash)

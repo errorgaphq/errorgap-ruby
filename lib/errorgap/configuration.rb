@@ -13,7 +13,10 @@ module Errorgap
                   :filter_keys,
                   :ignore_environments,
                   :apm_enabled,
-                  :apm_sample_rate
+                  :apm_sample_rate,
+                  :logs_enabled,
+                  :minimum_log_level,
+                  :max_breadcrumbs
 
     def initialize
       @endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
@@ -27,6 +30,9 @@ module Errorgap
       @ignore_environments = ENV.fetch("ERRORGAP_IGNORE_ENVIRONMENTS", "").split(",").map(&:strip).reject(&:empty?)
       @apm_enabled = false
       @apm_sample_rate = 1.0
+      @logs_enabled = true
+      @minimum_log_level = "info"
+      @max_breadcrumbs = 25
     end
 
     def validate!

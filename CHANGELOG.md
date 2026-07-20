@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-20
+
+### Added
+
+- **Nested exception causes.** The `cause` chain of a raised exception is now
+  walked and reported: each cause appears under `context.causes`, and every
+  link's frames are merged into a single, re-indexed backtrace so the dashboard
+  renders the whole chain in one view.
+- **Breadcrumbs.** `Errorgap.add_breadcrumb(message, category:, metadata:)`
+  records a diagnostic trail (a fixed-size ring, `config.max_breadcrumbs`,
+  default 25) that is attached to subsequent notices as `context.breadcrumbs`.
+  `Errorgap.clear_breadcrumbs` empties it.
+- **Structured logs.** `Errorgap.log(message, level:, source:)` delivers log
+  lines to the ingestion API. Levels (`trace`/`debug`/`info`/`warn`/`error`/
+  `fatal`, plus common aliases) are normalized and ranked; anything below
+  `config.minimum_log_level` (default `info`) is dropped locally.
+  `config.logs_enabled` toggles delivery.
+- **Manual APM API.** `Errorgap.track_transaction` and `Errorgap.track_job`
+  time a block and deliver a transaction, yielding a span recorder for manual
+  DB/HTTP spans (`spans.database`, `spans.external`) — automatic
+  `sql.active_record` spans recorded during the block are merged in.
+  `Errorgap.notify_transaction` delivers a prebuilt transaction. This lets
+  non-Rails apps and background jobs report APM data.
+- **Source excerpts for dependency frames.** Backtrace source is now attached to
+  any readable frame (bounded by the existing 25-frame cap), not only in-app
+  frames, so dependency frames show source in the dashboard.
+- `Errorgap.flush` joins in-flight async delivery threads before process exit.
+
 ## [0.4.0] - 2026-07-16
 
 ### Fixed

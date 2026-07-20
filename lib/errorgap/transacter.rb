@@ -18,7 +18,7 @@ module Errorgap
       return if @configuration.ignored_environment?
       return unless should_sample?
 
-      Thread.new { deliver(transaction) }
+      Errorgap.register_thread(Thread.new { deliver(transaction) })
     end
 
     def deliver(transaction)
