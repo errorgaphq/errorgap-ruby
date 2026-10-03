@@ -17,13 +17,14 @@ module Errorgap
   end
 
   Transaction = Struct.new(
-    :kind, :method, :path, :path_raw, :status_code,
+    :id, :kind, :method, :path, :path_raw, :status_code,
     :duration_ms, :environment, :occurred_at, :spans,
     :job_class, :queue,
     keyword_init: true
   ) do
     def to_h
       {
+        id: id,
         kind: kind,
         method: method,
         path: path,

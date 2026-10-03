@@ -90,6 +90,13 @@ end
 Enable with `config.apm_enabled = true` (and optionally `config.apm_sample_rate`).
 Call `Errorgap.flush` before process exit to drain async deliveries.
 
+Every transaction gets an id, and errors reported while it runs — from the
+middleware, `Errorgap.notify`, or inside `track_transaction`/`track_job` —
+carry it as `context.transaction_id`. Errorgap then shows the error a request
+actually raised on its trace, and links each occurrence to its request.
+`Errorgap.current_transaction_id` returns the id in effect (fiber-local), and
+`Errorgap.with_transaction_id { |id| ... }` scopes one around custom work.
+
 ## Rack
 
 ```ruby

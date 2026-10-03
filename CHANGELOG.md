@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-03
+
+### Added
+
+- **Errors link to their request.** Every APM transaction (Rack middleware,
+  `track_transaction`, `track_job`) now has an id, sent as the transaction's
+  `id`, and errors reported while it runs carry it as
+  `context.transaction_id`. Errorgap shows the error a request actually raised
+  on its trace instead of matching by route and time, and links each
+  occurrence to its trace. The id is fiber-local, so concurrent requests never
+  share one, and is sent even when APM sampling drops the transaction.
+  `Errorgap.current_transaction_id` and `Errorgap.with_transaction_id` expose
+  it for custom instrumentation.
+
 ## [0.5.0] - 2026-07-20
 
 ### Added
