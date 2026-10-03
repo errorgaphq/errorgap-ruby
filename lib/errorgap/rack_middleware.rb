@@ -7,30 +7,42 @@ module Errorgap
     end
 
     def call(env)
-      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      SpanCollector.start if apm_enabled?
+      return call_without_transaction(env) unless apm_enabled?
 
-      status, headers, body = @app.call(env)
-      [status, headers, body]
-    rescue Exception => exception # rubocop:disable Lint/RescueException
-      notify_once(env, exception)
-      raise
-    ensure
-      if apm_enabled?
-        elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000.0
-        record_transaction(env, status || 500, elapsed_ms)
+      # Errors raised while this request runs carry its transaction id.
+      Errorgap.with_transaction_id do |transaction_id|
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        SpanCollector.start
+        begin
+          status, headers, body = @app.call(env)
+          [status, headers, body]
+        rescue Exception => exception # rubocop:disable Lint/RescueException
+          notify_once(env, exception)
+          raise
+        ensure
+          elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000.0
+          record_transaction(env, status || 500, elapsed_ms, transaction_id)
+        end
       end
     end
 
     private
 
+    def call_without_transaction(env)
+      @app.call(env)
+    rescue Exception => exception # rubocop:disable Lint/RescueException
+      notify_once(env, exception)
+      raise
+    end
+
     def apm_enabled?
       Errorgap.configuration.apm_enabled
     end
 
-    def record_transaction(env, status_code, elapsed_ms)
+    def record_transaction(env, status_code, elapsed_ms, transaction_id)
       spans = SpanCollector.flush
       txn = Transaction.new(
+        id: transaction_id,
         kind: "web",
         method: env["REQUEST_METHOD"],
         path: route_pattern(env),

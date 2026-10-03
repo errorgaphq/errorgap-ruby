@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 require_relative "errorgap/configuration"
 require_relative "errorgap/breadcrumbs"
 require_relative "errorgap/notifier"
@@ -43,6 +45,10 @@ module Errorgap
     end
 
     def notify(error, context: {}, environment: {}, session: {}, params: {}, sync: false)
+      # The request or job this error was raised in, so errorgap links the two.
+      if (transaction_id = current_transaction_id) && !context.key?(:transaction_id) && !context.key?("transaction_id")
+        context = context.merge(transaction_id: transaction_id)
+      end
       notifier.notify(
         error,
         context: context,
@@ -75,6 +81,26 @@ module Errorgap
       )
     end
 
+    TRANSACTION_ID_KEY = :errorgap_transaction_id
+
+    # The id of the APM transaction running on this fiber, if any. Notices
+    # reported while it is set carry it as `context.transaction_id`.
+    def current_transaction_id
+      Thread.current[TRANSACTION_ID_KEY]
+    end
+
+    # Run the block as one transaction: a new id is current for its duration
+    # (fiber-local, so concurrent requests never share one) and the previous
+    # one is restored after. Yields the id.
+    def with_transaction_id
+      previous = Thread.current[TRANSACTION_ID_KEY]
+      id = SecureRandom.uuid
+      Thread.current[TRANSACTION_ID_KEY] = id
+      yield id
+    ensure
+      Thread.current[TRANSACTION_ID_KEY] = previous
+    end
+
     # Deliver a prebuilt APM transaction, honoring apm_enabled and sampling.
     def notify_transaction(transaction, sync: false)
       return unless configuration.apm_enabled
@@ -92,39 +118,45 @@ module Errorgap
     # receives a SpanRecorder for manual DB/HTTP spans; any automatic
     # `sql.active_record` spans recorded during the block are merged in.
     def track_transaction(method: nil, path: nil, path_raw: nil, status_code: nil, kind: "web", environment: nil, sync: false)
-      SpanCollector.start
-      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      occurred = Time.now
-      begin
-        yield(SpanRecorder.new) if block_given?
-      ensure
-        elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000.0
-        transaction = Transaction.new(
-          kind: kind, method: method, path: path, path_raw: path_raw,
-          status_code: status_code, duration_ms: elapsed_ms.round(2),
-          environment: environment || configuration.environment,
-          occurred_at: occurred, spans: SpanCollector.flush
-        )
-        notify_transaction(transaction, sync: sync)
+      with_transaction_id do |transaction_id|
+        SpanCollector.start
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        occurred = Time.now
+        begin
+          yield(SpanRecorder.new) if block_given?
+        ensure
+          elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000.0
+          transaction = Transaction.new(
+            id: transaction_id,
+            kind: kind, method: method, path: path, path_raw: path_raw,
+            status_code: status_code, duration_ms: elapsed_ms.round(2),
+            environment: environment || configuration.environment,
+            occurred_at: occurred, spans: SpanCollector.flush
+          )
+          notify_transaction(transaction, sync: sync)
+        end
       end
     end
 
     # Time a background job and deliver it as a `job` transaction.
     def track_job(job_class, queue: "default", environment: nil, sync: false)
-      SpanCollector.start
-      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      occurred = Time.now
-      begin
-        yield(SpanRecorder.new) if block_given?
-      ensure
-        elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000.0
-        transaction = Transaction.new(
-          kind: "job", job_class: job_class, queue: queue,
-          duration_ms: elapsed_ms.round(2),
-          environment: environment || configuration.environment,
-          occurred_at: occurred, spans: SpanCollector.flush
-        )
-        notify_transaction(transaction, sync: sync)
+      with_transaction_id do |transaction_id|
+        SpanCollector.start
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        occurred = Time.now
+        begin
+          yield(SpanRecorder.new) if block_given?
+        ensure
+          elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000.0
+          transaction = Transaction.new(
+            id: transaction_id,
+            kind: "job", job_class: job_class, queue: queue,
+            duration_ms: elapsed_ms.round(2),
+            environment: environment || configuration.environment,
+            occurred_at: occurred, spans: SpanCollector.flush
+          )
+          notify_transaction(transaction, sync: sync)
+        end
       end
     end
 
