@@ -16,7 +16,8 @@ module Errorgap
                   :apm_sample_rate,
                   :logs_enabled,
                   :minimum_log_level,
-                  :max_breadcrumbs
+                  :max_breadcrumbs,
+                  :release
 
     def initialize
       @endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
@@ -33,6 +34,9 @@ module Errorgap
       @logs_enabled = true
       @minimum_log_level = "info"
       @max_breadcrumbs = 25
+      # The deployed version or commit: errors are attributed to the deploy
+      # that shipped them.
+      @release = ENV["ERRORGAP_RELEASE"].to_s.strip.empty? ? nil : ENV["ERRORGAP_RELEASE"].strip
     end
 
     def validate!

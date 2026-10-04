@@ -88,3 +88,36 @@ class TransactionIdTest < Minitest::Test
     refute_equal ids[0][0], ids[1][0]
   end
 end
+
+class ReleaseAndTraceTest < Minitest::Test
+  def test_release_comes_from_the_environment
+    previous = ENV["ERRORGAP_RELEASE"]
+    ENV["ERRORGAP_RELEASE"] = " abc123 "
+    assert_equal "abc123", Errorgap::Configuration.new.release
+    ENV.delete("ERRORGAP_RELEASE")
+    assert_nil Errorgap::Configuration.new.release
+  ensure
+    previous ? ENV["ERRORGAP_RELEASE"] = previous : ENV.delete("ERRORGAP_RELEASE")
+  end
+
+  def test_notices_carry_the_release
+    config = Errorgap::Configuration.new
+    config.project_slug = "demo"
+    config.release = "abc123"
+    notice = Errorgap::Notice.from_exception(RuntimeError.new("x"), configuration: config)
+    assert_equal "abc123", notice.to_h[:context][:release]
+  end
+end
+
+class TransactionIdTest
+  def test_the_middleware_records_the_browser_trace_header
+    middleware = Errorgap::RackMiddleware.new(->(_env) { [200, {}, ["ok"]] })
+    trace = "0192F3C4-7A1B-4C2D-9E3F-0123456789AB"
+    middleware.call("REQUEST_METHOD" => "GET", "PATH_INFO" => "/orders/7", "HTTP_X_ERRORGAP_TRACE" => trace)
+    middleware.call("REQUEST_METHOD" => "GET", "PATH_INFO" => "/orders/8", "HTTP_X_ERRORGAP_TRACE" => "not-a-uuid")
+
+    assert_equal trace.downcase, self.class.transactions[0][:trace_id]
+    refute self.class.transactions[1].key?(:trace_id), "a malformed header is ignored"
+    refute_equal self.class.transactions[0][:id], self.class.transactions[0][:trace_id]
+  end
+end

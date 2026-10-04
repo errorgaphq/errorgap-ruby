@@ -35,6 +35,15 @@ module Errorgap
       raise
     end
 
+    UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
+
+    # The x-errorgap-trace header a browser SDK sent with this call, linking
+    # the browser's view of it to this transaction. Only a well-formed UUID.
+    def browser_trace_id(env)
+      value = env["HTTP_X_ERRORGAP_TRACE"].to_s.strip
+      value.match?(UUID) ? value.downcase : nil
+    end
+
     def apm_enabled?
       Errorgap.configuration.apm_enabled
     end
@@ -43,6 +52,7 @@ module Errorgap
       spans = SpanCollector.flush
       txn = Transaction.new(
         id: transaction_id,
+        trace_id: browser_trace_id(env),
         kind: "web",
         method: env["REQUEST_METHOD"],
         path: route_pattern(env),

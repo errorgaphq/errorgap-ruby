@@ -17,7 +17,7 @@ module Errorgap
   end
 
   Transaction = Struct.new(
-    :id, :kind, :method, :path, :path_raw, :status_code,
+    :id, :trace_id, :kind, :method, :path, :path_raw, :status_code,
     :duration_ms, :environment, :occurred_at, :spans,
     :job_class, :queue,
     keyword_init: true
@@ -25,6 +25,7 @@ module Errorgap
     def to_h
       {
         id: id,
+        trace_id: trace_id,
         kind: kind,
         method: method,
         path: path,

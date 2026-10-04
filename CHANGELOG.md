@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-03
+
+### Added
+
+- **Releases.** `config.release` (default `ENV["ERRORGAP_RELEASE"]`) is sent
+  as `context.release` on every notice, tying errors to the deploy that
+  shipped them.
+- **Browser trace links.** The Rack middleware reads the `x-errorgap-trace`
+  header sent by `@errorgap/browser` 0.3+ and records it as the transaction's
+  `trace_id`, so errorgap links a browser API call to the server request that
+  answered it. Only well-formed UUIDs are accepted.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added

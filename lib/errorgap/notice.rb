@@ -61,6 +61,7 @@ module Errorgap
         environment: @configuration.environment,
         root_directory: @configuration.root_directory
       }
+      context[:release] = @configuration.release if @configuration.release
       causes = collect_causes
       context[:causes] = causes unless causes.empty?
       context[:breadcrumbs] = @breadcrumbs unless @breadcrumbs.empty?
