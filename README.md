@@ -31,8 +31,17 @@ Errorgap.configure do |config|
   # Skip reporting entirely (errors and APM) in these environments.
   # Also configurable via ERRORGAP_IGNORE_ENVIRONMENTS="test,development".
   config.ignore_environments = %w[test development]
+
+  # The deployed version or commit (defaults to ERRORGAP_RELEASE). Errors carry
+  # it, so errorgap ties each one to the deploy that shipped it.
+  config.release = ENV["GIT_SHA"]
 end
 ```
+
+When the errorgap browser SDK is on the page, its API calls send an
+`x-errorgap-trace` header; the Rack middleware records it on the request's
+transaction, so the browser's Performance view links each call to the server
+request that answered it.
 
 ## Manual Notification
 
