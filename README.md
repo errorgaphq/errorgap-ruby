@@ -79,6 +79,41 @@ Levels are `trace < debug < info < warn < error < fatal` (with aliases like
 `warning`/`critical`); anything below `config.minimum_log_level` (default
 `info`) is dropped locally. Set `config.logs_enabled = false` to disable.
 
+## Sign-ins
+
+Report sign-ins to your app; errorgap shows them beside SSH logins in
+Security › Logins, flags a new IP, country or hour for a user, and alerts on
+a sign-in after many failures. Off until you opt in, since events carry user
+names and IPs:
+
+```ruby
+Errorgap.configure do |config|
+  config.auth_events = true
+  config.app_name = "oxcoffee-web"   # default: the project slug
+  config.auth_user = :email          # or :id, or ->(user) { ... }
+end
+```
+
+**Devise / Warden** apps need nothing else: the Railtie installs Warden hooks
+that report each successful sign-in and each failed attempt (a POST that
+Warden rejects; a locked account reports `locked`). Visiting a protected
+page while signed out, expired sessions and remember-me cookies are not
+reported. Outside Rails, call `Errorgap::WardenHooks.install` after
+configuring.
+
+Anything else, or other outcomes:
+
+```ruby
+Errorgap.sign_in("success", user: user.email, request: request)
+Errorgap.sign_in("mfa_failure", user: user.email, request: request)
+Errorgap.sign_in("password_reset", user: user.email, request: request)
+```
+
+Outcomes: `success`, `failure`, `password_reset`, `mfa_failure`, `locked`.
+The request supplies the IP (`remote_ip`), user agent and path. Passwords
+and tokens are never sent; errorgap can also store user names hashed
+(Security › Logins › Web apps › Privacy).
+
 ## APM
 
 The Rack middleware records a web transaction per request automatically (with

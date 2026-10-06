@@ -17,7 +17,10 @@ module Errorgap
                   :logs_enabled,
                   :minimum_log_level,
                   :max_breadcrumbs,
-                  :release
+                  :release,
+                  :auth_events,
+                  :auth_user,
+                  :app_name
 
     def initialize
       @endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
@@ -37,6 +40,14 @@ module Errorgap
       # The deployed version or commit: errors are attributed to the deploy
       # that shipped them.
       @release = ENV["ERRORGAP_RELEASE"].to_s.strip.empty? ? nil : ENV["ERRORGAP_RELEASE"].strip
+      # Sign-ins to this app (Security › Logins). Off until you opt in: they
+      # carry user names and IPs.
+      @auth_events = false
+      # How a signed-in user is named: a method (:email) or a proc. Default:
+      # email, username, login, then id.
+      @auth_user = nil
+      # The app's name in Security › Logins; defaults to the project slug.
+      @app_name = nil
     end
 
     def validate!

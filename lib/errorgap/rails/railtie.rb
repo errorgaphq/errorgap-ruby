@@ -25,6 +25,11 @@ module Errorgap
         SpanCollector.install
       end
 
+      # After config/initializers, so `auth_events` is readable here.
+      config.after_initialize do
+        Errorgap::WardenHooks.install if Errorgap.configuration.auth_events
+      end
+
       generators do
         require "generators/errorgap/install_generator"
       end

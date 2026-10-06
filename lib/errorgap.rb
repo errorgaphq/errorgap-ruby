@@ -7,6 +7,8 @@ require_relative "errorgap/breadcrumbs"
 require_relative "errorgap/notifier"
 require_relative "errorgap/notice"
 require_relative "errorgap/log_delivery"
+require_relative "errorgap/sign_ins"
+require_relative "errorgap/warden_hooks"
 require_relative "errorgap/transaction"
 require_relative "errorgap/span_collector"
 require_relative "errorgap/span_recorder"
@@ -21,6 +23,7 @@ module Errorgap
       notifier.configure(configuration)
       transacter.configure(configuration)
       log_delivery.configure(configuration)
+      sign_ins.configure(configuration)
       @breadcrumbs = Breadcrumbs.new(configuration.max_breadcrumbs)
     end
 
@@ -38,6 +41,19 @@ module Errorgap
 
     def log_delivery
       @log_delivery ||= LogDelivery.new(configuration)
+    end
+
+    def sign_ins
+      @sign_ins ||= SignIns.new(configuration)
+    end
+
+    # Report a sign-in to this app: "success", "failure", "password_reset",
+    # "mfa_failure" or "locked". Pass the request for its IP, user agent and
+    # path. Needs `config.auth_events = true`; Devise apps get this
+    # automatically from the Warden hooks.
+    def sign_in(outcome, user: nil, request: nil, ip: nil, user_agent: nil, path: nil, method: nil, sync: false)
+      sign_ins.record(outcome, user: user, request: request, ip: ip, user_agent: user_agent,
+                               path: path, method: method, sync: sync)
     end
 
     def breadcrumbs
