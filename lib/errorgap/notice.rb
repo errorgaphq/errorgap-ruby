@@ -11,6 +11,7 @@ module Errorgap
     MAX_SOURCE_FRAMES = 25
     MAX_SOURCE_LINE_LENGTH = 400
     MAX_CAUSE_DEPTH = 10
+    MAX_MESSAGE_LENGTH = 8192
 
     def self.from_exception(error, configuration:, context: {}, environment: {}, session: {}, params: {}, breadcrumbs: [])
       new(
@@ -40,15 +41,15 @@ module Errorgap
         received_at: Time.now.utc.iso8601,
         errors: [
           {
-            type: @error.class.name,
-            message: @error.message.to_s,
+            type: @error.class.name.to_s,
+            message: Sanitizer.string(@error.message, MAX_MESSAGE_LENGTH),
             backtrace: backtrace_frames
           }
         ],
-        context: default_context.merge(stringify_hash(@context)),
-        environment: stringify_hash(@environment),
-        session: stringify_hash(@session),
-        params: filter_hash(@params)
+        context: default_context.merge(sanitizer.clean(@context)),
+        environment: sanitizer.clean(@environment),
+        session: sanitizer.filter(@session),
+        params: sanitizer.filter(@params)
       }
     end
 
@@ -100,7 +101,7 @@ module Errorgap
     # The causes beyond the root error, as {type, message} pairs.
     def collect_causes
       error_chain.drop(1).map do |link|
-        { type: link.class.name, message: link.message.to_s }
+        { type: link.class.name.to_s, message: Sanitizer.string(link.message, MAX_MESSAGE_LENGTH) }
       end
     end
 
@@ -173,20 +174,8 @@ module Errorgap
       absolute_path.sub(%r{\A#{Regexp.escape(root)}/?}, "")
     end
 
-    def filter_hash(hash)
-      stringify_hash(hash).each_with_object({}) do |(key, value), filtered|
-        filtered[key] = sensitive?(key) ? "[FILTERED]" : value
-      end
-    end
-
-    def sensitive?(key)
-      @configuration.filter_keys.any? { |filter| key.to_s.downcase.include?(filter.downcase) }
-    end
-
-    def stringify_hash(hash)
-      hash.each_with_object({}) do |(key, value), result|
-        result[key.to_s] = value.is_a?(Hash) ? stringify_hash(value) : value
-      end
+    def sanitizer
+      @sanitizer ||= Sanitizer.new(@configuration.filter_keys)
     end
   end
 end

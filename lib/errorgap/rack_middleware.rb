@@ -20,6 +20,7 @@ module Errorgap
           notify_once(env, exception)
           raise
         ensure
+          Errorgap.clear_user
           elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000.0
           record_transaction(env, status || 500, elapsed_ms, transaction_id)
         end
@@ -33,6 +34,8 @@ module Errorgap
     rescue Exception => exception # rubocop:disable Lint/RescueException
       notify_once(env, exception)
       raise
+    ensure
+      Errorgap.clear_user
     end
 
     UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
@@ -85,18 +88,19 @@ module Errorgap
       env["PATH_INFO"]
     end
 
+    # Queued, not sent inline: a slow or unreachable errorgap must not add
+    # its timeout to a request that is already failing.
     def notify_once(env, exception)
       notified = env["errorgap.notified_exception_ids"] ||= {}
       return if notified[exception.object_id]
 
       notified[exception.object_id] = true
-      Errorgap.notify(
+      Errorgap.notify_once(
         exception,
         context: rack_context(env),
         environment: rack_environment(env),
         session: rack_session(env),
-        params: rack_params(env),
-        sync: true
+        params: rack_params(env)
       )
     end
 
@@ -112,15 +116,54 @@ module Errorgap
       {
         method: env["REQUEST_METHOD"],
         path: env["PATH_INFO"],
-        query_string: env["QUERY_STRING"],
+        query_string: filtered_query(env["QUERY_STRING"]),
         user_agent: env["HTTP_USER_AGENT"],
         remote_addr: env["REMOTE_ADDR"]
       }
     end
 
+    # `?token=abc` is as sensitive in the query string as it is in params.
+    def filtered_query(query)
+      return query if query.nil? || query.empty?
+
+      keys = Array(Errorgap.configuration.filter_keys)
+      query.split("&").map do |pair|
+        name, value = pair.split("=", 2)
+        sensitive = keys.any? do |key|
+          key.is_a?(Regexp) ? key.match?(name.to_s) : name.to_s.downcase.include?(key.to_s.downcase)
+        end
+        sensitive && value ? "#{name}=[FILTERED]" : pair
+      end.join("&")
+    rescue StandardError
+      nil
+    end
+
     def rack_session(env)
       session = env["rack.session"]
-      session.respond_to?(:to_hash) ? session.to_hash : {}
+      data = session.respond_to?(:to_hash) ? session.to_hash : {}
+      signed_in_user(env).merge(data)
+    rescue StandardError
+      {}
+    end
+
+    # The signed-in user (Warden / Devise), unless the app named one itself
+    # with `Errorgap.set_user`. Only looks at a user Warden already loaded:
+    # it never triggers authentication from inside error handling.
+    def signed_in_user(env)
+      return {} unless Errorgap.configuration.capture_user
+      return {} if Errorgap.current_user
+
+      warden = env["warden"]
+      return {} unless warden.respond_to?(:authenticated?) && warden.respond_to?(:user)
+      return {} unless warden.authenticated?
+
+      user = warden.user
+      found = {}
+      found["user_id"] = user.id.to_s if user.respond_to?(:id) && user.id
+      found["user_email"] = user.email.to_s if user.respond_to?(:email) && user.email
+      found
+    rescue StandardError
+      {}
     end
 
     def rack_params(env)

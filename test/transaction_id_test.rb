@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
 
 # Errors raised inside an APM transaction carry its id, so errorgap shows the
 # error the request actually raised and links the occurrence to its trace.
@@ -95,7 +96,9 @@ class ReleaseAndTraceTest < Minitest::Test
     ENV["ERRORGAP_RELEASE"] = " abc123 "
     assert_equal "abc123", Errorgap::Configuration.new.release
     ENV.delete("ERRORGAP_RELEASE")
-    assert_nil Errorgap::Configuration.new.release
+    config = Errorgap::Configuration.new
+    config.root_directory = Dir.mktmpdir
+    assert_nil config.release
   ensure
     previous ? ENV["ERRORGAP_RELEASE"] = previous : ENV.delete("ERRORGAP_RELEASE")
   end

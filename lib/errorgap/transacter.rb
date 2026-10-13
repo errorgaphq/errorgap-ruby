@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-require "net/http"
-require "uri"
-
 module Errorgap
   class Transacter
     def initialize(configuration)
@@ -18,25 +14,11 @@ module Errorgap
       return if @configuration.ignored_environment?
       return unless should_sample?
 
-      Errorgap.register_thread(Thread.new { deliver(transaction) })
+      Errorgap.delivery.enqueue("transactions", transaction.to_h)
     end
 
     def deliver(transaction)
-      uri = URI.join(
-        @configuration.endpoint.end_with?("/") ? @configuration.endpoint : "#{@configuration.endpoint}/",
-        "api/projects/#{@configuration.project_slug}/transactions"
-      )
-      request = Net::HTTP::Post.new(uri)
-      request["Content-Type"] = "application/json"
-      request["User-Agent"] = "errorgap-ruby/#{Errorgap::VERSION}"
-      request["X-Errorgap-Project-Key"] = @configuration.api_key if present?(@configuration.api_key)
-      request.body = JSON.generate(transaction.to_h)
-
-      Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") do |http|
-        http.request(request)
-      end
-    rescue StandardError => exception
-      @configuration.logger&.warn("[errorgap] APM delivery error: #{exception.class}: #{exception.message}")
+      Errorgap.delivery.post("transactions", transaction.to_h)
     end
 
     private
@@ -47,10 +29,6 @@ module Errorgap
       return false if rate <= 0.0
 
       rand < rate
-    end
-
-    def present?(value)
-      !value.nil? && !value.to_s.empty?
     end
   end
 end

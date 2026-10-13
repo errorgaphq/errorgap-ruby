@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-require "net/http"
-require "uri"
-
 module Errorgap
   class Notifier
     Response = Struct.new(:status, :body, :error, keyword_init: true) do
@@ -33,11 +29,15 @@ module Errorgap
         params: params,
         breadcrumbs: breadcrumbs
       )
+      payload = run_hooks(notice.to_h)
+      return Response.new(status: 202, body: "dropped by before_notify") unless payload
+
+      Errorgap.record_release_once if @configuration.track_release
 
       if sync || !@configuration.async
-        deliver(notice)
+        deliver(payload)
       else
-        Errorgap.register_thread(Thread.new { deliver(notice) })
+        Errorgap.delivery.enqueue("notices", payload)
         Response.new(status: 202, body: "queued")
       end
     rescue StandardError => exception
@@ -45,18 +45,11 @@ module Errorgap
       Response.new(error: exception)
     end
 
+    # `notice` is a Notice or an already built payload Hash.
     def deliver(notice)
-      uri = URI.join(@configuration.endpoint.end_with?("/") ? @configuration.endpoint : "#{@configuration.endpoint}/", "api/projects/#{@configuration.project_slug}/notices")
-      request = Net::HTTP::Post.new(uri)
-      request["Content-Type"] = "application/json"
-      request["User-Agent"] = "errorgap-ruby/#{Errorgap::VERSION}"
-      request["X-Errorgap-Project-Key"] = @configuration.api_key if present?(@configuration.api_key)
-      request.body = JSON.generate(notice.to_h)
-
-      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") do |http|
-        http.request(request)
-      end
-      Response.new(status: response.code.to_i, body: response.body)
+      payload = notice.respond_to?(:to_h) && !notice.is_a?(Hash) ? notice.to_h : notice
+      result = Errorgap.delivery.post("notices", payload)
+      Response.new(status: result.status, body: result.body, error: result.error)
     rescue StandardError => exception
       log(exception)
       Response.new(error: exception)
@@ -64,12 +57,25 @@ module Errorgap
 
     private
 
-    def log(exception)
-      @configuration.logger&.warn("[errorgap] #{exception.class}: #{exception.message}")
+    # A hook that raises is logged and skipped: a bug in a filter must not
+    # lose the error it was filtering.
+    def run_hooks(payload)
+      @configuration.before_notify_hooks.each do |hook|
+        begin
+          result = hook.call(payload)
+        rescue StandardError => exception
+          log(exception)
+          next
+        end
+        return nil if result == false
+
+        payload = result if result.is_a?(Hash) && result.key?(:errors)
+      end
+      payload
     end
 
-    def present?(value)
-      !value.nil? && !value.to_s.empty?
+    def log(exception)
+      @configuration.logger&.warn("[errorgap] #{exception.class}: #{exception.message}")
     end
   end
 end

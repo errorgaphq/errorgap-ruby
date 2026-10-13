@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-13
+
+### Added
+
+- **Background jobs.** In Rails, ActiveJob jobs (any adapter) and Sidekiq
+  jobs are timed as `job` transactions and their errors are reported with the
+  job class, queue, id and arguments, then re-raised so retries work as
+  before. Outside Rails: `Errorgap::Integrations::ActiveJob.install` /
+  `Errorgap::Integrations::Sidekiq.install`.
+- **`config.before_notify`.** A block that sees each notice before it is sent
+  and can change it or return `false` to drop it.
+- **Outbound HTTP spans.** `Net::HTTP` requests made during a transaction are
+  recorded as `http` spans (`GET api.stripe.com`).
+- **Signed-in user.** Errors raised in a request carry the Warden / Devise
+  user as `session.user_id` and `session.user_email`
+  (`config.capture_user = false` to turn off). `Errorgap.set_user(id:,
+  email:)` names the user anywhere else.
+- **Release detection.** With `config.release` unset the release is read from
+  the platform's commit variable (`SOURCE_VERSION`, `HEROKU_SLUG_COMMIT`,
+  `RENDER_GIT_COMMIT`, `KAMAL_VERSION`, …), a Capistrano `REVISION` file or
+  the git checkout.
+- **Deploys.** `Errorgap.track_release` and `errorgap deploy` record a release
+  with errorgap; `config.track_release = true` records it when the first
+  error of a process is reported.
+- `config.timeout` (5 seconds) and `config.queue_size` (100).
+
+### Changed
+
+- **Delivery.** Async sends go through one bounded queue and one worker
+  thread instead of a thread per notice, transaction and log line. A full
+  queue drops its oldest entry. Requests time out after `config.timeout`
+  (they previously waited up to 60 seconds). Sends that fail on the network
+  or with a 5xx are retried up to three times; a 429 or 503 pauses sending
+  for the server's `Retry-After`. Queued payloads are flushed at exit, and
+  the worker restarts in forked processes (Puma workers, Sidekiq).
+- The Rack middleware queues an uncaught error instead of sending it inside
+  the failing request.
+
+### Fixed
+
+- **Nested sensitive params were sent unmasked.** `filter_keys` was only
+  applied to top-level keys, so `user[password]` went out in the clear. Keys
+  are now masked at any depth, in arrays, in the Rack session and in the
+  query string. `filter_keys` also accepts regexps.
+- A param holding invalid UTF-8, a reference cycle or an object that cannot
+  be serialized no longer loses the notice; long strings and large
+  collections are truncated.
+
 ## [0.8.0] - 2026-10-06
 
 ### Added

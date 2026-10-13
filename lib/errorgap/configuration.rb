@@ -17,10 +17,17 @@ module Errorgap
                   :logs_enabled,
                   :minimum_log_level,
                   :max_breadcrumbs,
-                  :release,
+                  :timeout,
+                  :queue_size,
+                  :capture_user,
+                  :track_release,
+                  :release_sha,
+                  :release_branch,
                   :auth_events,
                   :auth_user,
                   :app_name
+    attr_writer :release
+    attr_reader :before_notify_hooks
 
     def initialize
       @endpoint = ENV.fetch("ERRORGAP_ENDPOINT", "http://127.0.0.1:3030")
@@ -37,9 +44,24 @@ module Errorgap
       @logs_enabled = true
       @minimum_log_level = "info"
       @max_breadcrumbs = 25
+      # Seconds allowed for each request to errorgap.
+      @timeout = 5
+      # Payloads held for the background sender; the oldest is dropped when
+      # the queue is full.
+      @queue_size = 100
       # The deployed version or commit: errors are attributed to the deploy
-      # that shipped them.
+      # that shipped them. Unset, it is read from the platform's commit
+      # variable, a REVISION file or the git checkout.
       @release = ENV["ERRORGAP_RELEASE"].to_s.strip.empty? ? nil : ENV["ERRORGAP_RELEASE"].strip
+      @release_sha = nil
+      @release_branch = nil
+      # Record the release with errorgap (Deploys) when the first error of a
+      # process is reported.
+      @track_release = false
+      # Attach the signed-in user's id and email to errors raised in a
+      # request (Warden / Devise).
+      @capture_user = true
+      @before_notify_hooks = []
       # Sign-ins to this app (Security › Logins). Off until you opt in: they
       # carry user names and IPs.
       @auth_events = false
@@ -48,6 +70,26 @@ module Errorgap
       @auth_user = nil
       # The app's name in Security › Logins; defaults to the project slug.
       @app_name = nil
+    end
+
+    def release
+      return @release if @release
+
+      unless defined?(@detected_release) && @detected_root == root_directory
+        @detected_root = root_directory
+        @detected_release = ReleaseDetector.detect(root_directory)
+      end
+      @detected_release
+    end
+
+    # Runs before a notice is sent, with the notice as a Hash that can be
+    # changed in place. Return `false` to drop it.
+    #
+    #   config.before_notify { |notice| false if notice[:errors][0][:type] == "Timeout::Error" }
+    def before_notify(callable = nil, &block)
+      hook = callable || block
+      @before_notify_hooks << hook if hook.respond_to?(:call)
+      hook
     end
 
     def validate!

@@ -23,6 +23,14 @@ module Errorgap
         # subscribers no-op unless the middleware starts a per-request
         # collection, which does check the flag.
         SpanCollector.install
+        Errorgap::Integrations::NetHTTP.install
+      end
+
+      # Background jobs: report their errors and time them. Like the span
+      # collector these check the configuration when a job runs.
+      initializer "errorgap.install_job_integrations" do
+        Errorgap::Integrations::ActiveJob.install
+        Errorgap::Integrations::Sidekiq.install
       end
 
       # After config/initializers, so `auth_events` is readable here.

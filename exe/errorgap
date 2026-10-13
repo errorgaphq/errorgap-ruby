@@ -9,7 +9,23 @@ case command
 when "test"
   Errorgap.notify(RuntimeError.new("Errorgap test exception"), sync: true)
   puts "Sent test exception to Errorgap."
+when "deploy"
+  # errorgap deploy [--version V] [--sha SHA] [--branch B] [--environment E]
+  options = {}
+  ARGV.each_slice(2) do |flag, value|
+    key = flag.to_s.sub(/\A--/, "").to_sym
+    abort "Unknown option #{flag}" unless %i[version sha branch environment].include?(key)
+    abort "Missing value for #{flag}" if value.nil?
+    options[key] = value
+  end
+  result = Errorgap.track_release(**options)
+  if result&.success?
+    puts "Recorded release with Errorgap."
+  else
+    warn "Release not recorded#{result ? " (#{result.error || result.status})" : ": no version or sha"}"
+    exit 1
+  end
 else
-  warn "Usage: errorgap test"
+  warn "Usage: errorgap test | errorgap deploy [--version V] [--sha SHA] [--branch B] [--environment E]"
   exit 1
 end

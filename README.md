@@ -34,9 +34,52 @@ Errorgap.configure do |config|
 
   # The deployed version or commit (defaults to ERRORGAP_RELEASE). Errors carry
   # it, so errorgap ties each one to the deploy that shipped it.
+  # Unset, it is detected: the platform's commit variable, a Capistrano
+  # REVISION file, then the git checkout.
   config.release = ENV["GIT_SHA"]
+
+  # Change a notice before it is sent, or return false to drop it.
+  config.before_notify do |notice|
+    false if notice[:errors].first[:type] == "ActionController::RoutingError"
+  end
 end
 ```
+
+`filter_keys` (substrings or regexps, case-insensitive) are masked at any
+depth in params, the session and the query string. `config.timeout` (5 s) and
+`config.queue_size` (100) bound delivery: notices are queued and sent by one
+background thread, retried after a network failure or 5xx, and paused when the
+server answers 429.
+
+## Background jobs
+
+In Rails, ActiveJob (any adapter) and Sidekiq jobs need no setup: each job is
+timed as a `job` transaction when APM is on, and an error it raises is reported
+with the job class, queue, id and arguments, then re-raised. Outside Rails:
+
+```ruby
+Errorgap::Integrations::ActiveJob.install
+Errorgap::Integrations::Sidekiq.install
+```
+
+## Users
+
+Errors raised in a request carry the signed-in Warden / Devise user's id and
+email (`config.capture_user = false` to turn off). Anywhere else:
+
+```ruby
+Errorgap.set_user(id: account.id, email: account.email)
+```
+
+## Deploys
+
+```sh
+bundle exec errorgap deploy --sha "$GIT_SHA" --branch main
+```
+
+or `Errorgap.track_release(sha:, branch:)` from a deploy script, or
+`config.track_release = true` to record the release when a process reports its
+first error.
 
 When the errorgap browser SDK is on the page, its API calls send an
 `x-errorgap-trace` header; the Rack middleware records it on the request's
@@ -123,7 +166,7 @@ app or background job — use the block API:
 ```ruby
 Errorgap.track_transaction(method: "GET", path: "/orders/{id}", path_raw: "/orders/7", status_code: 200) do |spans|
   spans.database("SELECT * FROM orders WHERE id = 7", 4.2, fn_name: "Repo.load")
-  spans.external(30.0, fn_name: "Gateway.fetch")
+  spans.external(30.0, fn_name: "Gateway.fetch")   # Net::HTTP calls are recorded for you
 end
 
 Errorgap.track_job("ReceiptJob", queue: "mailers") do |spans|

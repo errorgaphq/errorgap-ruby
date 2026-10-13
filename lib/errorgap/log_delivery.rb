@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-require "net/http"
-require "uri"
 require "time"
 
 module Errorgap
@@ -39,27 +36,13 @@ module Errorgap
       if sync || !@configuration.async
         deliver(payload)
       else
-        Errorgap.register_thread(Thread.new { deliver(payload) })
+        Errorgap.delivery.enqueue("logs", payload)
         nil
       end
     end
 
     def deliver(payload)
-      uri = URI.join(
-        @configuration.endpoint.end_with?("/") ? @configuration.endpoint : "#{@configuration.endpoint}/",
-        "api/projects/#{@configuration.project_slug}/logs"
-      )
-      request = Net::HTTP::Post.new(uri)
-      request["Content-Type"] = "application/json"
-      request["User-Agent"] = "errorgap-ruby/#{Errorgap::VERSION}"
-      request["X-Errorgap-Project-Key"] = @configuration.api_key if present?(@configuration.api_key)
-      request.body = JSON.generate(payload)
-
-      Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") do |http|
-        http.request(request)
-      end
-    rescue StandardError => exception
-      @configuration.logger&.warn("[errorgap] log delivery error: #{exception.class}: #{exception.message}")
+      Errorgap.delivery.post("logs", payload)
     end
 
     def self.normalize_level(level)
@@ -70,12 +53,6 @@ module Errorgap
 
     def self.rank(level)
       LEVELS.index(level) || LEVELS.index("info")
-    end
-
-    private
-
-    def present?(value)
-      !value.nil? && !value.to_s.empty?
     end
   end
 end
