@@ -6,6 +6,7 @@ require_relative "errorgap/configuration"
 require_relative "errorgap/sanitizer"
 require_relative "errorgap/release_detector"
 require_relative "errorgap/delivery"
+require_relative "errorgap/remote_settings"
 require_relative "errorgap/breadcrumbs"
 require_relative "errorgap/notifier"
 require_relative "errorgap/notice"
@@ -20,6 +21,9 @@ require_relative "errorgap/rack_middleware"
 require_relative "errorgap/integrations/sidekiq"
 require_relative "errorgap/integrations/active_job"
 require_relative "errorgap/integrations/net_http"
+require_relative "errorgap/integrations/resque"
+require_relative "errorgap/integrations/delayed_job"
+require_relative "errorgap/integrations/rake"
 require_relative "errorgap/version"
 
 module Errorgap
@@ -27,6 +31,7 @@ module Errorgap
     def configure
       yield(configuration)
       delivery.configure(configuration)
+      remote_settings.configure(configuration)
       notifier.configure(configuration)
       transacter.configure(configuration)
       log_delivery.configure(configuration)
@@ -40,6 +45,11 @@ module Errorgap
 
     def notifier
       @notifier ||= Notifier.new(configuration)
+    end
+
+    # What errorgap wants this app to send (the project's remote settings).
+    def remote_settings
+      @remote_settings ||= RemoteSettings.new(configuration)
     end
 
     # The shared sender behind notices, transactions, logs and sign-ins.
@@ -210,6 +220,7 @@ module Errorgap
     def notify_transaction(transaction, sync: false)
       return unless configuration.apm_enabled
       return if configuration.ignored_environment?
+      return unless remote_settings.enabled?(:apm)
       return unless sample_apm?
 
       if sync || !configuration.async

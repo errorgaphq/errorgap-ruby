@@ -62,6 +62,18 @@ Errorgap::Integrations::ActiveJob.install
 Errorgap::Integrations::Sidekiq.install
 ```
 
+Resque, Delayed Job and Rake tasks are covered the same way (in Rails with no
+setup; elsewhere `Errorgap::Integrations::Resque.install`,
+`Errorgap::Integrations::DelayedJob.install`,
+`Errorgap::Integrations::Rake.install`).
+
+## Remote settings
+
+Errors, performance data and logs can each be switched off for a project in
+errorgap (Project settings › What SDKs send). Running apps follow within ten
+minutes, with no deploy. If errorgap cannot be reached, everything stays on.
+`config.remote_settings = false` ignores the project's switches.
+
 ## Users
 
 Errors raised in a request carry the signed-in Warden / Devise user's id and

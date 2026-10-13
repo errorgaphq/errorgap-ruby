@@ -19,6 +19,9 @@ module Errorgap
     def notify(error, context: {}, environment: {}, session: {}, params: {}, breadcrumbs: [], sync: false)
       @configuration.validate!
       return Response.new(status: 202, body: "ignored environment") if @configuration.ignored_environment?
+      unless Errorgap.remote_settings.enabled?(:errors)
+        return Response.new(status: 202, body: "errors are switched off for this project")
+      end
 
       notice = Notice.from_exception(
         error,
