@@ -31,6 +31,13 @@ module Errorgap
       initializer "errorgap.install_job_integrations" do
         Errorgap::Integrations::ActiveJob.install
         Errorgap::Integrations::Sidekiq.install
+        Errorgap::Integrations::Resque.install
+        Errorgap::Integrations::DelayedJob.install
+      end
+
+      # `rails some:task` / `rake some:task` errors.
+      rake_tasks do
+        Errorgap::Integrations::Rake.install
       end
 
       # After config/initializers, so `auth_events` is readable here.

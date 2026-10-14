@@ -12,6 +12,7 @@ module Errorgap
 
     def deliver_async(transaction)
       return if @configuration.ignored_environment?
+      return unless Errorgap.remote_settings.enabled?(:apm)
       return unless should_sample?
 
       Errorgap.delivery.enqueue("transactions", transaction.to_h)

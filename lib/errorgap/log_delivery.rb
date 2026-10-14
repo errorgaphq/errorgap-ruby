@@ -21,6 +21,7 @@ module Errorgap
     def log(message, level: "info", source: nil, environment: nil, occurred_at: nil, sync: false)
       return unless @configuration.logs_enabled
       return if @configuration.ignored_environment?
+      return unless Errorgap.remote_settings.enabled?(:logs)
 
       normalized = self.class.normalize_level(level)
       return if self.class.rank(normalized) < self.class.rank(self.class.normalize_level(@configuration.minimum_log_level))

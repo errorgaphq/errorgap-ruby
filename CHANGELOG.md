@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-13
+
+### Added
+
+- **Remote settings.** The gem follows the project's settings in errorgap
+  (Project settings › What SDKs send): when errors, performance data or logs
+  are switched off there, running apps stop sending them within ten minutes,
+  with no deploy. Read on a background thread from
+  `GET /api/projects/:slug/config`; if errorgap cannot be reached everything
+  stays on. `config.remote_settings = false` (or
+  `ERRORGAP_REMOTE_SETTINGS=false`) turns this off.
+- **Resque.** Failed jobs are reported with their class, queue and arguments,
+  alongside Resque's own failure backend.
+- **Delayed Job.** Jobs are timed as `job` transactions and their errors
+  reported with the job class, queue, id and attempt count.
+- **Rake.** An error that ends a task is reported with the task's name and
+  flushed before Rake exits.
+
+In Rails all three are installed for you. Elsewhere:
+`Errorgap::Integrations::Resque.install`, `…::DelayedJob.install`,
+`…::Rake.install`.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

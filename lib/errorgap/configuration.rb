@@ -23,6 +23,7 @@ module Errorgap
                   :track_release,
                   :release_sha,
                   :release_branch,
+                  :remote_settings,
                   :auth_events,
                   :auth_user,
                   :app_name
@@ -62,6 +63,10 @@ module Errorgap
       # request (Warden / Devise).
       @capture_user = true
       @before_notify_hooks = []
+      # Follow the project's settings in errorgap (Project settings › What
+      # SDKs send): stop sending errors, performance data or logs when they
+      # are switched off there.
+      @remote_settings = ENV["ERRORGAP_REMOTE_SETTINGS"].to_s.strip.downcase != "false"
       # Sign-ins to this app (Security › Logins). Off until you opt in: they
       # carry user names and IPs.
       @auth_events = false
